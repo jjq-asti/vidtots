@@ -1,4 +1,4 @@
 All:
 
 clean:
-	rm *.ts *.avi *.mp2 *.pes *.m2v
+	rm videos/*.ts videos/*.avi videos/*.mp2 videos/*.pes videos/*.m2v

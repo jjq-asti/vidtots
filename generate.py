@@ -50,7 +50,7 @@ def generateAVI(vid_ids): #AVI is well supported by ffmpeg
     file_descriptors["audioBitRate"]        = aud['BitRate']
     #file_descriptors['audioMaxBitRate']     = aud['BitRate_Maximum']
     file_descriptors["audioSamplingRate"]   = aud['SamplingRate']
-    file_descriptors["MaxRate"]             = general['OverallBitRate']
+    file_descriptors["MaxRate"]             = int(general['OverallBitRate']) * 10 #max to millions place
     file_descriptors["file_name"]           = os.path.splitext( vidFile)[0]  + "_video" + ".avi" 
     fps_initial = int(float(file_descriptors["frameRate"])) 
     if fps_initial < 25:  #NTSC/TV 30fps
@@ -77,11 +77,10 @@ def generateAVI(vid_ids): #AVI is well supported by ffmpeg
     return file_descriptors
 
 def generateMPEG2(aviFileDescriptor):
-    bit_rate =  "1000k" #aviFileDescriptor["MaxRate"] + "k"  #int(aviFileDescriptor["videoBitRate"])
-    max_rate =  "1000k" #aviFileDescriptor["MaxRate"] + "k"
-    min_rate =  "1000k" #aviFileDescriptor["MaxRate"] + "k"  #aviFileDescriptor["audioBitRate"]
-    mpeg2_filename = os.path.splitext(aviFileDescriptor["file_name"])[0] + ".m2v"
-    print(mpeg2_filename)
+    bit_rate =  aviFileDescriptor["MaxRate"]  #int(aviFileDescriptor["videoBitRate"])
+    max_rate =  aviFileDescriptor["MaxRate"]
+    min_rate =  aviFileDescriptor["MaxRate"] #aviFileDescriptor["audioBitRate"]
+    m2v_name = os.path.splitext(aviFileDescriptor["file_name"])[0] + ".m2v"
 
    # if os.path.exists(mpeg2_filename):
    #     subprocess.run(['rm', 'mpeg2_filename'], stdout = subprocess.PIPE, stderr = stdout)
@@ -96,15 +95,14 @@ def generateMPEG2(aviFileDescriptor):
         aviFileDescriptor["aspectRatio"],
         aviFileDescriptor["pts"],
         bit_rate, max_rate, 
-        min_rate, mpeg2_filename)
+        min_rate, m2v_name)
         
     proc = subprocess.run(command,shell=True, stdout=subprocess.PIPE)
-    return mpeg2_filename
+    return m2v_name
 
 def generateVideoPES(mp2filename):
     mp2_name = mp2filename
     pes_filename = os.path.splitext(mp2_name)[0] + ".pes"
-
     command = "esvideompeg2pes {} > {}".format(mp2_name,pes_filename)
     proc = subprocess.run(command, shell=True, stdout=subprocess.PIPE)
 
@@ -112,7 +110,7 @@ def generateVideoPES(mp2filename):
 
 def generateVideoTS(aviFileDescriptor, pes_name): 
     ts_filename = os.path.splitext(pes_name)[0] + ".ts" 
-    vid_bit_rate = 1000000 * (1 + 0.15)
+    vid_bit_rate =  aviFileDescriptor['MaxRate']* (1 + 0.15)
    
     command = "pesvideo2ts 2065 {} 112 {} 0 {} > {}".format(
     aviFileDescriptor['frameRate'],
@@ -127,8 +125,8 @@ def generateVideoTS(aviFileDescriptor, pes_name):
 def extractAudioToMp2(aviFileDescriptor):
     avi_name = aviFileDescriptor['file_name']
     audio_mp2_name = os.path.splitext(vidFile)[0] + "_audio" + ".mp2"
-    audio_sampling_rate = aviFileDescriptor["audioSamplingRate"]
-    audio_bitrate = 128000 #aviFileDescriptor["audioBitRate"] 
+    audio_sampling_rate = "48k" #aviFileDescriptor["audioSamplingRate"]
+    audio_bitrate = "128k" #aviFileDescriptor["audioBitRate"] 
     temp = 1
 
     print(audio_sampling_rate, audio_bitrate)
@@ -151,12 +149,21 @@ def getAudioFrameSize(audioFileName):
     proc = subprocess.run(command, shell=True, stdout = subprocess.PIPE)
     shell_output = proc.stdout.decode()
     all_test = shell_output.split("\n\n")
-    all_test.pop()
     final_result = all_test.pop()
-    x,y = re.search("\d+Hz", final_result).span()
-    audioDescriptor["sampling_rate"] = final_result[x:y-2]
-    x,y = re.search("\d+\sbytes", final_result).span()
-    audioDescriptor["frame_size"] = final_result[x:y-6]
+    final_result = all_test.pop()
+    final_result = all_test.pop()
+    final_result = all_test.pop()
+    print(final_result)
+    try:
+        x,y = re.search("\d+Hz", final_result).span()
+        audioDescriptor["sampling_rate"] = final_result[x:y-2]
+    except:
+        pass
+    try:
+        x,y = re.search("\d+\sbytes", final_result).span()
+        audioDescriptor["frame_size"] = final_result[x:y-6]
+    except:
+        pass
     print(audioDescriptor)
     return audioDescriptor
 
@@ -164,11 +171,12 @@ def generateAudioPES(audio_mp2_name, audioDescriptor):
     audio_framesize = audioDescriptor['frame_size']
     audio_sampling_rate = audioDescriptor['sampling_rate'] 
     audio_pes_name = os.path.splitext(vidFile)[0] + "_audio" + ".pes"
+    pts_step = ()
 
-    command = "esaudio2pes {} {} {} 384 -1 3600 > {}".format(
+    command = "esaudio2pes {} 1152 {} {} -1 3600 > {}".format(
         audio_mp2_name,
-        audio_sampling_rate,
         audio_framesize,
+        audio_sampling_rate,
         audio_pes_name )
 
     subprocess.run(command, shell = True, stdout = subprocess.PIPE)
@@ -190,9 +198,6 @@ def muxTS():
     command = "tscbmuxer b:{} sample.ts b:{} "
 if __name__ == "__main__":
     vidFile = sys.argv[1]
-    #vidResolution = sys.argv[2]
-    #vidFramerate = sys.argv[3]
-    #vidAspectRatio = sys.argv[4]
 
     vid_ids = getVideoID(vidFile) #working
     aviFileDescriptor = generateAVI(vid_ids) #working
