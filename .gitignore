@@ -1,7 +1,10 @@
 videos/
-ocidr1/*
+ocdir/
 *.ts
 *.avi
 *.mp4
 *.mp2
 *.m2v
+*.sec
+*.sdt
+*.pdf

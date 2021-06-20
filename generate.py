@@ -7,6 +7,8 @@ import re
 import json
 import xmltodict
 
+import remux
+
 vidFile = ""
 
 ASPECT_RATIO = {
@@ -43,14 +45,14 @@ def generateAVI(vid_ids): #AVI is well supported by ffmpeg
     print("Generating AVI...\n\n")
 
     file_descriptors = {}
-    file_descriptors["resolution"]          = '{}x{}'.format(vid['Sampled_Width'],vid['Sampled_Height'])
+    file_descriptors["resolution"]          = '1280x720' #{}x{}'.format(vid['Sampled_Width'],vid['Sampled_Height'])
     file_descriptors["frameRate"]           = vid['FrameRate']
     file_descriptors["videoBitRate"]        = vid['BitRate']
     file_descriptors["aspectRatio"]         = ASPECT_RATIO[vid['DisplayAspectRatio']]
     file_descriptors["audioBitRate"]        = aud['BitRate']
     #file_descriptors['audioMaxBitRate']     = aud['BitRate_Maximum']
     file_descriptors["audioSamplingRate"]   = aud['SamplingRate']
-    file_descriptors["MaxRate"]             = int(general['OverallBitRate']) * 10 #max to millions place
+    file_descriptors["MaxRate"]             = 5000000#int(general['OverallBitRate']) * 15 #max to millions place
     file_descriptors["file_name"]           = os.path.splitext( vidFile)[0]  + "_video" + ".avi" 
     fps_initial = int(float(file_descriptors["frameRate"])) 
     if fps_initial < 25:  #NTSC/TV 30fps
@@ -120,7 +122,7 @@ def generateVideoTS(aviFileDescriptor, pes_name):
 
     proc = subprocess.run(command, shell=True, stdout=subprocess.PIPE)
 
-    return ts_filename
+    return ts_filename, vid_bit_rate
 
 def extractAudioToMp2(aviFileDescriptor):
     avi_name = aviFileDescriptor['file_name']
@@ -193,11 +195,13 @@ def generateAudioTS(audio_pes_name, audioDescriptor):
         audio_ts_name )
 
     subprocess.run(command, shell = True, stdout = subprocess.PIPE)
+    return audio_ts_name, 188000 # refer to avalpa manual
 
 def muxTS():
     command = "tscbmuxer b:{} sample.ts b:{} "
 if __name__ == "__main__":
     vidFile = sys.argv[1]
+    ocdir_rate = int(sys.argv[2])
 
     vid_ids = getVideoID(vidFile) #working
     aviFileDescriptor = generateAVI(vid_ids) #working
@@ -205,7 +209,7 @@ if __name__ == "__main__":
 
 
     pes_name = generateVideoPES(mp2FileName) 
-    ts_name = generateVideoTS(aviFileDescriptor,pes_name)
+    video_ts_name, video_ts_bitrate = generateVideoTS(aviFileDescriptor,pes_name)
     
 
     audio_mp2_name = extractAudioToMp2(aviFileDescriptor)
@@ -213,7 +217,11 @@ if __name__ == "__main__":
 
     audio_pes_name = generateAudioPES(audio_mp2_name, audioDescriptor)
     print("generate audio ts")
-    generateAudioTS(audio_pes_name, audioDescriptor)
+    audio_ts_name, audio_ts_bitrate = generateAudioTS(audio_pes_name, audioDescriptor)
+
+
+
+
 
 
 
